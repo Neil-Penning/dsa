@@ -1,9 +1,5 @@
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.Queue;
-import java.util.List;
-import java.util.Set;
-import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.*;
 
 public class Maze {
     public final boolean[][] maze;
@@ -69,28 +65,41 @@ public class Maze {
     // 1. make char[][] charArr
     // 2. iterate through charArr to made Node array
 
-    public boolean isConnected(int h1, int k1, int h2, int k2) {
+    public List<Node> isConnected(int h1, int k1, int h2, int k2) {
         Node start = new Node(h1, k1);
         Node end = new Node(h2, k2);
         System.out.printf("Attempting to connect %s to %s\n", start.toString(), end.toString());
         // TODO: Predecessors Graph
-        Set<Node> visited = new HashSet<Node>(); // False for not yet visited, true for visited
+        Map<Node, Node> visited = new HashMap<Node, Node>();
         Queue<Node> search = new ConcurrentLinkedQueue<Node>();
         search.add(start);
-        visited.add(start);
+        visited.put(start, null);
         while (!search.isEmpty()) {
-            Node next = search.poll();
-            for (Node pos : getNeighbors(next)) {
-                if (!visited.contains(pos)) {
+            Node current = search.poll();
+            for (Node pos : getNeighbors(current)) {
+                if (!visited.containsKey(pos)) {
                     System.out.printf("Visiting %s\n", pos.toString());
-                    if (pos.equals(end)) return true;
+                    visited.put(pos, current);
+                    if (pos.equals(end)) {
+                        return makeTrace(visited, end);
+                    }
                     search.add(pos);
-                    visited.add(pos);
                 }
             }
         }
         // All nodes have been exhausted
-        return false;
+        return null;
+    }
+    public List<Node> makeTrace(Map<Node, Node> visited, Node end) {
+        ArrayList<Node> trace = new ArrayList<Node>();
+        Node current = end;
+        while (current != null) {
+            trace.add(current);
+            System.out.printf("traced %s\n", current.toString());
+            current = visited.get(current);
+            //System.out.printf("currently at %s\n", current.toString());
+        }
+        return trace;
     }
     public static void main(String[] args) {
         Maze m_minimal = new Maze(
@@ -126,7 +135,7 @@ public class Maze {
             "████████████████\n"),
             7, 5);
         m_small.print();
-        System.out.println(m_small.isConnected(2, 4, 4, 6));
+        System.out.println(null != m_small.isConnected(2, 4, 4, 6));
         System.out.println();
         System.out.println();
         //m_medium.print();
@@ -162,4 +171,3 @@ class Node {
         return String.format("(%d, %d)", h, k);
     }
 }
-
