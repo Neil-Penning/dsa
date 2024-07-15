@@ -17,39 +17,41 @@ public class Maze {
         key_d
     }
     public final spot[][] maze;
-    public HashMap<spot, char> spotChar = new HashMap<spot, char>();
+    public Node start; // Removed `final` 
+    public Node end; // Removed `final` 
+    public HashMap<spot, Character> spotChar = new HashMap<spot, Character>();
     public spot spotLookup(char c) {
         switch (c) {
             case '0':
-                return spot.start; break;
+                return spot.start; 
             case '1':
-                return spot.end; break;
+                return spot.end;
             case '█':
-                return spot.wall; break;
+                return spot.wall;
             case 'a':
-                return spot.key_a; break;
+                return spot.key_a;
             case 'b':
-                return spot.key_b; break;
+                return spot.key_b;
             case 'c':
-                return spot.key_c; break;
+                return spot.key_c;
             case 'd':
-                return spot.key_d; break;
+                return spot.key_d;
             case 'A':
-                return spot.chest_A; break;
+                return spot.chest_A;
             case 'B':
-                return spot.chest_B; break;
+                return spot.chest_B;
             case 'C':
-                return spot.chest_C; break;
+                return spot.chest_C;
             case 'D':
-                return spot.chest_D; break;
+                return spot.chest_D;
             case ' ':
             default:
                 return spot.empty;
             }
     }
-    public Maze(String intake, int char_count, int line_count) {
-        int h = char_count;
-        int k = line_count;
+    public Maze(String[] lines) {
+        int char_count = lines[0].length();
+        int line_count = lines.length;
 
         spotChar.put(spot.empty,  ' ');
         spotChar.put(spot.wall, '█');
@@ -64,8 +66,6 @@ public class Maze {
         spotChar.put(spot.key_c, 'c');
         spotChar.put(spot.key_d, 'd');
 
-        String[] lines = intake.split("\n");
-
         maze = new spot[line_count][char_count];
 
         // fill in spot[][] maze
@@ -73,6 +73,13 @@ public class Maze {
             for (int cursor = 0; cursor < char_count; cursor++) {
                 char c = lines[l_num].charAt(cursor);
                 maze[l_num][cursor] = spotLookup(c);
+                if (maze[l_num][cursor] == spot.start) {
+                    // May run into a problem where multiple starts are defined
+                    this.start = new Node(l_num, cursor, (byte) 0);
+                } else if (maze[l_num][cursor] == spot.end) {
+                    // May run into a problem where multiple ends are defined
+                    this.end = new Node(l_num, cursor, (byte) 0xFFFFFF);
+                }
             }
         }
     }
@@ -82,14 +89,22 @@ public class Maze {
     public Node[] getNeighbors(int h, int k, byte inventory) {
         ArrayList<Node> neighbors = new ArrayList<Node>();
         // North
-        if (k != 0 && maze[h][k-1] != spot.wall) {neighbors.add(new Node(h, k-1, inventory));}
+        if (k != 0 && maze[h][k-1] != spot.wall) {
+            neighbors.add(new Node(h, k-1, updateInventory(inventory, maze[h][k-1])));
+        }
         // South
-        if (k + 1 != maze[0].length && maze[h][k+1] != spot.wall) {neighbors.add(new Node(h, k+1, inventory));}
+        if (k + 1 != maze[0].length && maze[h][k+1] != spot.wall) {
+            neighbors.add(new Node(h, k+1, updateInventory(inventory, maze[h][k+1])));
+        }
 
         // East
-        if (h != 0 && maze[h-h][k] != spot.wall) {neighbors.add(new Node(h-1, k, inventory));}
+        if (h != 0 && maze[h-1][k] != spot.wall) {
+            neighbors.add(new Node(h-1, k, updateInventory(inventory, maze[h-1][k])));
+        }
         // West
-        if (h + 1 != maze.length && maze[h+1][k] != spot.wall) {neighbors.add(new Node(h+1, k, inventory));}
+        if (h + 1 != maze.length && maze[h+1][k] != spot.wall) {
+            neighbors.add(new Node(h+1, k, updateInventory(inventory, maze[h+1][k])));
+        }
         return neighbors.toArray(new Node[0]);
     }
     public void print() {
@@ -112,27 +127,30 @@ public class Maze {
         }
         System.out.println();
     }
-    public List<Node> isConnected(int h1, int k1, int h2, int k2) {
-        Node start = new Node(h1, k1);
-        Node end = new Node(h2, k2);
+    public List<Node> isConnected() {
+        return isConnected(start.h, start.k, end.h, end.k);
+    }
+    private List<Node> isConnected(int h1, int k1, int h2, int k2) {
+        Node start = new Node(h1, k1, (byte) 0b0000_0000);
+        Node end = new Node(h2, k2, (byte) 0b1111_1111);
         System.out.printf("Attempting to connect %s to %s\n", start.toString(), end.toString());
         // TODO: Predecessors Graph
-        Map<Node, Node> visited = new HashMap<Node, Node>();
+        // Map<Long, Long>
+        Map<Long, Long> visited = new HashMap<Long, Long>();
         Queue<Node> search = new ConcurrentLinkedQueue<Node>();
         search.add(start);
-        visited.put(start, null);
-        byte inventory; // Instantiate to 0
+        visited.put(start.longHashCode(), null);
         while (!search.isEmpty()) {
             Node current = search.poll();
+            System.out.printf("Current: %s\n", current.toString());
+            if (current.equals(end)) {
+                return makeTrace(visited, end);
+            }
             for (Node pos : getNeighbors(current)) {
-                if (!visited.containsKey(pos)) {
+                if (!visited.containsKey(pos.longHashCode())) {
                     System.out.printf("Visiting %s\n", pos.toString());
-                    visited.put(pos, current);
+                    visited.put(pos.longHashCode(), current.longHashCode());
                     // Handle logic for each case of spot
-                    inventory = updateInventory(inventory);
-                    // if 
-                    // return makeTrace(visited, end);
-                    
                     search.add(pos);
                 }
             }
@@ -144,100 +162,142 @@ public class Maze {
         // 0000 0000
         // ABCD abcd
         //
-        switch (pos) {
+        switch (s) {
             case end:
                 break;
             case chest_A:
-                if ( 0b0000_1000 & inventory > 0 ) {
+                if ( (0b0000_1000 & inventory) > 0 ) {
                     return (byte) (0b1000_0000 | inventory);
                 }
                 break;
             case chest_B:
-                if ( 0b0000_0100 & inventory > 0 ) {
+                if ( (0b0000_0100 & inventory) > 0 ) {
                     return (byte) (0b0100_0000 | inventory);
                 }
                 break;
             case chest_C:
-                if ( 0b0000_0010 & inventory > 0 ) {
+                if ( (0b0000_0010 & inventory) > 0 ) {
                     return (byte) (0b0010_0000 | inventory);
                 }
                 break;
             case chest_D:
-                if ( 0b0000_0001 & inventory > 0 ) {
+                if ( (0b0000_0001 & inventory) > 0 ) {
                     return (byte) (0b0001_0000 | inventory);
                 }
                 break;
             case key_a:
                 return (byte) (0b0000_1000 | inventory);
-                break;
             case key_b:
                 return (byte) (0b0000_0100 | inventory);
-                break;
             case key_c:
                 return (byte) (0b0000_0010 | inventory);
-                break;
             case key_d:
                 return (byte) (0b0000_0001 | inventory);
-                break;
 
             case empty: case wall: case start:
             default:
                 return inventory;
-                break;
         }
+        return inventory;
     }
-    public List<Node> makeTrace(Map<Node, Node> visited, Node end) {
-        ArrayList<Node> trace = new ArrayList<Node>();
-        Node current = end;
-        while (current != null) {
-            trace.add(current);
-            System.out.printf("traced %s\n", current.toString());
-            current = visited.get(current);
-            //System.out.printf("currently at %s\n", current.toString());
+    public List<Node> makeTrace(Map<Long, Long> visited, Node end) {
+        System.out.println("Making Trace");
+        ArrayList<Long> fingerprintTrace = new ArrayList<Long>();
+        Long currentFingerprint = end.longHashCode();
+
+        while (currentFingerprint != null) {
+            System.out.printf("traced %s\n", currentFingerprint.toString());
+            fingerprintTrace.add(currentFingerprint);
+            currentFingerprint = visited.get(currentFingerprint);
+        }
+        List<Node> trace = new ArrayList<Node>();
+        Node currentNode = this.start;
+        trace.add(this.start);
+        for (Long fingerprint : fingerprintTrace.reversed()) {
+            for (Node neighbor : getNeighbors(currentNode)) {
+                if (neighbor.longHashCode() == fingerprint) {
+                    trace.add(neighbor);
+                    currentNode = neighbor;
+                    break;
+                }
+            }
         }
         return trace;
     }
     public static void main(String[] args) {
-        Maze m_minimal = new Maze(
-            "███████\n"+
-            "       \n"+
-            "███████\n"+
-            "       ", 7, 4);
-        m_minimal.print();
-        System.out.println(m_minimal.isConnected(1, 0, 1, 4));
+        Maze m_medium = new Maze( new String[] {
+            "0█A  ███████████",
+            " ███   b   █████",
+            " ██████ ██ █████",
+            " ██a    ██c ████",
+            " ████ █████  ███",
+            "D         ██C d ",
+            "█████████B ███1 "});
+        Maze m_large = new Maze( new String[] {
+"0 ███████████████████████████████████████", 
+"  █   █  D      █ █ █ █       █ █     █ █", 
+"█ ███ █████████ █ █ █ █ █ █████ █████ █ █", 
+"█ █       █   █   █     █               █", 
+"█ █ ███ ███ ███ █ ███ █████████████████ █", 
+"█   █ █       █ █         █   █ █   █ █ █", 
+"███ █ █ ███ █████ ███ ███ █ ███ █ █ █ █ █", 
+"█ █ █     █     █   █ █       █   █   █A█", 
+"█ ███ ███ ███ █ ███████ █ █ █████ █ ███ █", 
+"█     █ █   █ █   █ █ █ █ █ █     █     █", 
+"█████ █ █ ███████ █ █ █ █ ███ ███ ███ █ █", 
+"█   █ █     █   c   █ █ █ █     █   █ █ █", 
+"█ █████ █ ███ █ █ ███ ███████ ███ █████ █", 
+"█       █ █ █ █ █   █         █       █ █", 
+"███████ ███ █ █████ ███ █████ ███████ ███", 
+"█   █ █ █         █B█       █ █   █     █", 
+"███ █ ███ ███████ ███████ ███ █ ███ █████", 
+"█   █   █ █ █     █ █       █ █         █", 
+"███ ███ █ █ █ ███ █ █ █████ ███ ███ ███ █", 
+"█ █ █     █ █ █         █   █ █   █ █ █ █", 
+"█ █ ███ ███ ███████ █ ███ ███ ███ █ █ █ █", 
+"█   █ █ █ █     █ █ █   █ █   █   █ █   █", 
+"█ █ █ ███ ███ ███ ███ ███ ███ ███████ ███", 
+"█ █   █ █     █       █     █           █", 
+"███ ███ █ █ █████ ███████████ █████ ███ █", 
+"█   █   █ █ █ █         █ █   █   █ █   █", 
+"███ █ █ █ █ █ █ ███ ███ █ █████ ███████ █", 
+"█ █ █ █   █ █     █ █     b █     █ █ █ █", 
+"█ █ █ ███████ █ ███████ █ █ █████ █ █ ███", 
+"█     █ █     █   █     █ █           █a█", 
+"█ █ █ █ █ ███ █ ███████ ███ █ █ ███████ █", 
+"█ █ █     █   █ █ █   █ █   █ █ █       █", 
+"█████ ███████ ███ ███ █ ███ █ ███ █ █████", 
+"█   █ █     █     █ █     █ █     █     █", 
+"█ ███ █ █████████ █ █████████ █ █ ███ █ █", 
+"█       █   █ █   █   █     █ █ █ █   █ █", 
+"█ ███ ███ ███ ███ █ ███ █ █████ ███ █████", 
+"█ █           █ █   █   █   █   █ █   █ █", 
+"█ █ ███ ███████ █ █ █ █ █ █████ █ ███ █ █", 
+"█C█d█       █     █   █ █     █     █    ", 
+"███████████████████████████████████████ 1"});
         System.out.println();
-        Maze m_small = new Maze(
-            "      █\n"+
-            " ████ █\n"+
-            " ███  █\n"+
-            " ██████\n"+
-            "       ", 7, 5);
-        Maze m_medium = new Maze(
-            " ██  ███████████\n"+
-            " ███       █████\n"+
-            " █████████ █████\n"+
-            " █████████  ████\n"+
-            " ██████████  ███\n"+
-            "          ██    \n"+
-            "█████████  ████ \n",
-            15, 7);
-        Maze m_large = new Maze( new String(
-            "████████████████\n"+
-            "████████████████\n"+
-            "████████████████\n"+
-            "████████████████\n"+
-            "████████████████\n"+
-            "████████████████\n"+
-            "████████████████\n"),
-            7, 5);
-        m_small.print();
-        System.out.println(null != m_small.isConnected(2, 4, 4, 6));
+        m_medium.print();
+        List<Node> medium_trace = m_medium.isConnected();
+        if (medium_trace == null) {
+            System.out.println("Medium is not connected");
+        } else {
+            for (Node n : medium_trace) {
+                System.out.printf("Tracing %s\n", n.toString());
+            }
+        }
+        // System.out.println();
+        // m_large.print();
+        // System.out.println(null != m_large.isConnected());
         System.out.println();
-        System.out.println();
-        //m_medium.print();
-        System.out.println();
-        System.out.println();
-        //m_large.print();
+        m_large.print();
+        List<Node> large_trace = m_large.isConnected();
+        if (large_trace == null) {
+            System.out.println("Large is not connected");
+        } else {
+            for (Node n : large_trace) {
+                System.out.printf("Tracing %s\n", n.toString());
+            }
+        }
     }
 }
 
@@ -258,15 +318,23 @@ class Node {
         final int p3 = 199;
         return (this.h+1) * p1 + (this.k+1)*p2 + ((int) this.inventory+1)*p3;
     }
+    public long longHashCode() {
+        final long p1 = 2;
+        final long p2 = 61;
+        final long p3 = 199;
+        return (this.h+1) * p1 + (this.k+1)*p2 + ((long) (this.inventory+1))*p3;
+    }
     @Override
     public boolean equals(Object o) {
         try {
-            return ((Node) o).h == this.h && ((Node) o).k == this.k;
+            return ((Node) o).h == this.h 
+                && ((Node) o).k == this.k 
+                && ((Node) o).inventory == this.inventory;
         } catch (Exception e) { 
             return false;
         }
     }
     public String toString() {
-        return String.format("(%d, %d);%d", h, k, inventory);
+        return String.format("(%d, %d);0x%02X", h, k, inventory);
     }
 }

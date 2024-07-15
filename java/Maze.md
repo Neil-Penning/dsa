@@ -9,4 +9,4 @@ Todo:
     - Instead of storing an object in the visited map, store the hash of the object
     - This may make state reconstruction more difficult.
 - [ ] predesessor graph for `makeTrace`
-- [ ] 
+- [ ] `next` function?
